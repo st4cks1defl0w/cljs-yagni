@@ -31,7 +31,8 @@
 (defonce cli-options* (atom {}))
 
 ;;NOTE Global state for easy inspection from repl
-(defonce var-usage-graph (atom {}))
+;;{:my-namespace [:a-public-var {:seen true :seen-in [:added-in-verbose-mode]}]}
+(defonce publics-usage-graph (atom {}))
 
 (defn log [& xs]
   (when (and (pos? (count xs)) :verbose?)
@@ -65,8 +66,7 @@
 
 (defn- ns->analysis [ns-meta]
   (when (analyzed-ns? ns-meta)
-    (let [{:keys [source-map requires provides]} ns-meta
-         vars-in-ns                             (atom {})]
+    (let [{:keys [source-map requires provides]} ns-meta]
      (clojure.walk/prewalk
       (fn [node]
         (when (and (= (type node)
@@ -74,16 +74,44 @@
                    (= (first node) :name)
                    (analyzed-sb? node))
           ;;aka (namespace) from core
-          (let [[var-ns var-sb] (clojure.string/split (second node) #"\/")]
-            (swap! vars-in-ns update (keyword var-ns) conj (keyword var-sb))))
+          #_(let [[var-ns var-sb] (clojure.string/split (second node) #"\/")]
+            (when :verbose?
+              (swap! publics-usage-graph
+                     update-in
+                     [var-ns var-sb :seen-in]
+                     conj
+                     (keyword (first provides))))
+            (println "type of pub-us-gr is" (type @publics-usage-graph))
+            (swap! publics-usage-graph
+                     assoc-in
+                     [(keyword var-ns) (keyword var-sb) :seen]
+                     true)))
         node)
-      source-map)
-     {(keyword (first provides)) {:requires (map keyword requires)
-                                  :vars     @vars-in-ns}})))
+      source-map))))
 
 (defn- ns-graph []
-  (let [compiled (:cljs.closure/compiled-cljs @(cenv*))]
-    (apply merge (remove nil? (map ns->analysis (vals compiled))))))
+  (let [compiled    (:cljs.closure/compiled-cljs @(cenv*))
+        ns->publics (->> @(cenv*)
+                         :cljs.analyzer/namespaces
+                         keys
+                         ;;assuming lazy map+filter are optimized by compiler
+                         ;;to prevent walking twice; this is more readable
+                         (filter (fn [k]
+                                   (= (-> @cli-options* :options :root-ns)
+                                      (first (clojure.string/split (str k) #"\.")))))
+                         (map
+                          (fn [n]
+                            {(keyword n)
+                             (apply merge
+                                    (map (fn [pub-var] {(-> pub-var second :name keyword)
+                                                       {:seen    false
+                                                        :seen-in []}})
+                                         (ana-api/ns-publics (symbol n))))}))
+                         (apply merge))]
+    (reset! publics-usage-graph ns->publics)
+    (doseq [compiled-meta (vals compiled)]
+      (ns->analysis compiled-meta))
+     @publics-usage-graph))
 
 (defmacro cenv []
   (build)
