@@ -28,7 +28,7 @@
                                  :optimizations :none
                                  :aot-cache     false})
 
-(defonce cli-options* (atom {}))
+(def cli-options* (atom {}))
 
 ;;NOTE Global state for easy inspection from repl
 ;;{:my-namespace {::a-public-var {:seen?              true
@@ -172,9 +172,6 @@
   (log "Should-be-private vars analysis:")
   (clojure.pprint/pprint (unused-or-should-be-private-vars :should-be-private)))
 
-(defmacro reload []
-  (refresh))
-
 (def cli-options-scheme
   [["-r" "--root-ns root"
     "Namespaces to analyze are matched against this root ns up to first dot
@@ -185,11 +182,20 @@
     :validate [#(and (string? %) (not-empty %)) "Must be a non-empty string"]]
    ["-h" "--help"]])
 
+(defn remember-cli-options!
+  ([]
+   (reset! cli-options* @cli-options*))
+  ([args]
+   (reset! cli-options* (parse-opts args cli-options-scheme))))
+
+(defmacro reload []
+  (refresh)
+  (remember-cli-options!))
 
 (defn -main
   "Start toolbox REPL"
   [& args]
   (println "Howdy, cljs-toolbox started")
-  (reset! cli-options* (parse-opts args cli-options-scheme))
+  (remember-cli-options! args)
   (cljs.repl/repl* (repl-env path) repl-options)
   (println "Bye!"))
