@@ -180,15 +180,37 @@
     :id :root-ns
     :parse-fn str
     :validate [#(and (string? %) (not-empty %)) "Must be a non-empty string"]]
+   ["-t" "--task task"
+    "Tasks:
+    \"repl\" - start a repl session, where you should first run
+               (\"cljs-yagni.main/build\") for all other api function calls to work.
+               Then you can invoke api calls directly:
+               (\"cljs-yagni.main/privates\") - print should-be-privates
+               (\"cljs-yagni.main/build\") - print dead-code
+               (\"cljs-yagni.main/all\") - print should-be-privates and dead-code
+               Also at all times you can inspect the var
+               (\"cljs-yagni.main/publics-usage-graph\"), which holds meaningful
+               map of all analyzed vars, may be useful for debugging
+    \"print-all\" - print dead-code, print should-be-privates, exit
+    \"dead-code\" - print dead-code, exit
+    \"privates\" - print should-be-privates, exit"
+    :id :task
+    :parse-fn keyword
+    :default :print-all
+    :validate [#{"repl" "all" "privates" "dead-code"}
+               "Must be one of: \"repl\",
+                                \"all\" (privates + dead-code),
+                                \"privates\",
+                                \"dead-code\"  "]]
    ["-h" "--help"]])
 
-(defn remember-cli-options!
+(defn ^:dev remember-cli-options!
   ([]
    (reset! cli-options* @cli-options*))
   ([args]
    (reset! cli-options* (parse-opts args cli-options-scheme))))
 
-(defmacro reload []
+(defmacro ^:dev reload []
   (refresh)
   (remember-cli-options!))
 
