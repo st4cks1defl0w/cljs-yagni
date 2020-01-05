@@ -1,26 +1,23 @@
 (ns cljs-toolbox.main
   (:require [cljs.repl]
             [clojure.walk :as w]
-            [cljs.repl.browser]
             [cljs.repl.node]
-            [cljs.closure :as closure]
             [clojure.pprint]
-            [cljs.cli :as cli]
             [cljs.env]
             [clojure.java.shell :as shell]
-            [cljs.repl :as repl]
             [cljs.build.api :as bapi]
-            [cljs.analyzer :as ana]
             [clojure.tools.namespace.repl :refer [refresh]]
             [clojure.tools.cli :refer [parse-opts]]
             [cljs.analyzer.api :as ana-api]))
 
-;;shoud be extensible, varies a lot per prject (vec)
-(def ^:private path (.getCanonicalPath (clojure.java.io/file "src")))
+;;TODO should be passed through opts, varies a lot per project (vec)
+(def ^:private path (.getCanonicalPath (clojure.java.io/file "src"))
+  #_(mapv #(.getCanonicalPath (clojure.java.io/file %))
+                         ["src" "resources"]))
 
 (def ^:private repl-options {:analyze-path path})
 
-(def ^:private compiler-options {:main          'flappy-bird-demo.core
+(def ^:private compiler-options {:main          'cljs.user
                                  :output-to     ".cljs-toolbox-tmp/cljs-out/build-main.js"
                                  :output-dir    ".cljs-toolbox-tmp/cljs-out/build"
                                  :asset-path    "cljs-out/build"
@@ -28,7 +25,7 @@
                                  :optimizations :none
                                  :aot-cache     false})
 
-(def cli-options* (atom {}))
+(def cli-options (atom {}))
 
 ;;NOTE Global state for easy inspection from repl
 ;;{:my-namespace {::a-public-var {:seen?              true
@@ -44,30 +41,18 @@
 (defn log-spacer []
   (log (apply str (repeat 30 "_"))))
 
-(defmacro analyzer []
-  (println (keys (ana-api/get-js-index))))
-
 (defn- repl-env [path]
   (cljs.repl.node/repl-env* {:src path}))
 
 (defn cenv* []
   cljs.env/*compiler*)
 
-(defn- clean-build []
-  (shell/sh "rm" "-rf" (.getCanonicalPath (clojure.java.io/file ".cljs-toolbox-tmp"))))
-
-(defn- build []
-  (log "build started with path..." path)
-  (clean-build)
-  (log "build ended")
-  (bapi/build (bapi/inputs path #_["src"]) compiler-options))
-
 (defn- analyzed-ns? [ns-meta]
-  (= (-> @cli-options* :options :root-ns)
+  (= (-> @cli-options :options :root-ns)
      (first (clojure.string/split (first (:provides ns-meta)) #"\."))))
 
 (defn- analyzed-sb? [node]
-  (= (-> @cli-options* :options :root-ns)
+  (= (-> @cli-options :options :root-ns)
      (first (clojure.string/split (second node) #"\."))))
 
 (defn- analyze-var-status!
@@ -97,6 +82,17 @@
            assoc-in
            [var-ns ns-kw :should-be-private?]
            should-be-private?)))
+
+(defn- unused-or-should-be-private-vars [badness-type]
+  (let [badness-case    (case badness-type
+                          :unused            #(not (:seen? %))
+                          :should-be-private (fn [m] (:should-be-private? m))
+                          (constantly nil))
+        all-vars        (vals @publics-usage-graph)
+        filter-bad-vars #(apply merge
+                                (filter (fn [[_ v]]
+                                          (badness-case v)) %))]
+    (remove nil? (map filter-bad-vars all-vars))))
 
 (defn- ns->analysis! [ns-meta]
   (when (analyzed-ns? ns-meta)
@@ -128,7 +124,7 @@
                          ;;assuming lazy map+filter are optimized by compiler
                          ;;to prevent walking twice; this is more readable
                          (filter (fn [k]
-                                   (= (-> @cli-options* :options :root-ns)
+                                   (= (-> @cli-options :options :root-ns)
                                       (first (clojure.string/split (str k) #"\.")))))
                          ;;leave ns->:ns/var scheme for now to stay flexible
                          ;;as query by ns seems imminent at some point
@@ -146,78 +142,139 @@
     (doseq [compiled-meta (vals compiled)]
       (ns->analysis! compiled-meta))))
 
+(defn- clean-build []
+  (shell/sh "rm" "-rf" (.getCanonicalPath (clojure.java.io/file ".cljs-toolbox-tmp"))))
 
-(defn- unused-or-should-be-private-vars [badness-type]
-  (let [badness-case    (case badness-type
-                          :unused            #(not (:seen? %))
-                          :should-be-private (fn [m] (:should-be-private? m))
-                          (constantly nil))
-        all-vars        (vals @publics-usage-graph)
-        filter-bad-vars #(apply merge
-                                (filter (fn [[_ v]]
-                                          (badness-case v)) %))]
-    (remove nil? (map filter-bad-vars all-vars))))
-
-(defmacro print-dead-code []
-  (build)
+(defn- build* []
+  (log "build started with path..." path)
+  (clean-build)
+  ;;NOTE bapi/build is too noisy
+  (binding [*err* *out*]
+    (with-out-str (bapi/build (bapi/inputs path #_["src"]) compiler-options)))
+  (log "build ended")
+  (log "analyzing usage...")
   (analyze-usage!)
+  (log "usage analysis ended"))
+
+(defn dead-code* []
   (log-spacer)
   (log "Dead code analysis:")
   (clojure.pprint/pprint (unused-or-should-be-private-vars :unused)))
 
-(defmacro print-should-be-private []
-  (build)
-  (analyze-usage!)
+(defn privates* []
   (log-spacer)
   (log "Should-be-private vars analysis:")
   (clojure.pprint/pprint (unused-or-should-be-private-vars :should-be-private)))
 
+(defmacro ^:repl-api build []
+  (build*))
+
+(defmacro ^:repl-api dead-code []
+  (dead-code*))
+
+(defmacro ^:repl-api privates []
+  (privates*))
+
 (def cli-options-scheme
   [["-r" "--root-ns root"
-    "Namespaces to analyze are matched against this root ns up to first dot
+    "
+    *Only required option
+     Namespaces to analyze are matched against this root ns up to first dot
      e.g.:
-     to analyze \"my-proj.views.some-file\" you should run with -root my-proj"
+     to analyze \"my-proj.views.some-file\" you should run with -r my-proj"
     :id :root-ns
     :parse-fn str
     :validate [#(and (string? %) (not-empty %)) "Must be a non-empty string"]]
    ["-t" "--task task"
-    "Tasks:
-    \"repl\" - start a repl session, where you should first run
-               (\"cljs-yagni.main/build\") for all other api function calls to work.
+    "
+    repl - start a repl session, where you should first run
+               (cljs-yagni.main/build) for all other api function calls to work.
                Then you can invoke api calls directly:
-               (\"cljs-yagni.main/privates\") - print should-be-privates
-               (\"cljs-yagni.main/build\") - print dead-code
-               (\"cljs-yagni.main/all\") - print should-be-privates and dead-code
+               (cljs-yagni.main/dead-code) - print dead-code
+               (cljs-yagni.main/privates) - print should-be-privates
+               (cljs-yagni.main/all) - print should-be-privates and dead-code
                Also at all times you can inspect the var
-               (\"cljs-yagni.main/publics-usage-graph\"), which holds meaningful
+               (cljs-yagni.main/publics-usage-graph), which holds meaningful
                map of all analyzed vars, may be useful for debugging
-    \"print-all\" - print dead-code, print should-be-privates, exit
-    \"dead-code\" - print dead-code, exit
-    \"privates\" - print should-be-privates, exit"
+    all - print dead-code, print should-be-privates, exit
+    dead-code - print dead-code, exit
+    privates - print should-be-privates, exit"
     :id :task
     :parse-fn keyword
-    :default :print-all
-    :validate [#{"repl" "all" "privates" "dead-code"}
-               "Must be one of: \"repl\",
-                                \"all\" (privates + dead-code),
-                                \"privates\",
-                                \"dead-code\"  "]]
+    :default "all"
+    :validate [#{:repl :all :privates :dead-code}
+               "Must be one of:
+                                repl,
+                                all (dead-code + privates),
+                                dead-code,
+                                privates"]]
    ["-h" "--help"]])
 
-(defn ^:dev remember-cli-options!
+(defn- ^:dev remember-cli-options!
   ([]
-   (reset! cli-options* @cli-options*))
+   (reset! cli-options @cli-options))
   ([args]
-   (reset! cli-options* (parse-opts args cli-options-scheme))))
+   (reset! cli-options (parse-opts args cli-options-scheme))))
 
 (defmacro ^:dev reload []
   (refresh)
   (remember-cli-options!))
 
+(defn- run-and-exit [task]
+  (task)
+  (System/exit 0))
+
+(defn- print-usage []
+  (log "Usage:\n")
+  (log (:summary @cli-options))
+  (System/exit 0))
+
+(defn- print-errors []
+  (log (:errors @cli-options))
+  (System/exit 1))
+
 (defn -main
-  "Start toolbox REPL"
+  "Can be used to analyze compiled cljs to find unused or needlessly public vars"
   [& args]
-  (println "Howdy, cljs-toolbox started")
+  (println "Howdy, cljs-yagni started\n")
   (remember-cli-options! args)
-  (cljs.repl/repl* (repl-env path) repl-options)
-  (println "Bye!"))
+  (let [opts (:options @cli-options)]
+    (cond
+      (:help opts)
+      (print-usage)
+
+      (:errors @cli-options)
+      (print-errors)
+
+      ;; (= (:task opts) :all)
+      ;; (do (build) (dead-code) (privates) (System/exit 0))
+
+      (= (:task opts) :dead-code)
+      (run-and-exit (comp dead-code* build*))
+
+      (= (:task opts) :privates)
+      (run-and-exit (comp privates* build*))
+
+      (= (:task opts) :repl)
+      ;;TODO inspect repl-env for bapi fix
+      (do
+        (println "starting with repl........")
+        (cljs.repl/repl* (repl-env path) #_repl-options
+                        (assoc repl-options
+                               :repl-requires
+                               (quote [[cljs-toolbox.main :refer-macros [build dead-code privates]]
+                                       [cljs.repl :refer-macros [eval-cljs source doc find-doc apropos dir pst]] [cljs.pprint :refer [pprint] :refer-macros [pp]]])
+                                 :init
+                                 (fn []
+                                   (cljs.repl/eval-cljs
+                                    cljs.repl/*repl-env*
+                                    cljs.env/*compiler*
+                                    "(println 1)")
+                                   ;; (dead-code)
+                                   ;; (privates)
+                                   ;; #_#?(:clj
+                                   ;;    (do
+                                   ;;      (cljs-toolbox.main/build)
+                                   ;;      (cljs-toolbox.main/dead-code)
+                                   ;;      (cljs-toolbox.main/privates)))
+                                   #_(System/exit 0))))))))
