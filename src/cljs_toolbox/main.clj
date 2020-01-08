@@ -18,16 +18,20 @@
 (defonce publics-usage-graph (atom {}))
 
 ;;TODO should be passed through opts, varies a lot per project (vec)
-(def ^:private path (.getCanonicalPath (clojure.java.io/file "src")))
 (def ^:private repl-options {})
-(def ^:private compiler-options {:main      'cljs.user
-                                 :output-to ".cljs-toolbox-tmp/cljs-out/build-main.js"
-                                 :output-dir     ".cljs-toolbox-tmp/cljs-out/build"
-                                 :asset-path     "cljs-out/build"
-                                 :source-map     true
-                                 :optimizations  :none
-                                 :aot-cache      false})
+
+(def ^:private compiler-options {:main          'cljs.user
+                                 :output-to     ".cljs-toolbox-tmp/cljs-out/build-main.js"
+                                 :output-dir    ".cljs-toolbox-tmp/cljs-out/build"
+                                 :asset-path    "cljs-out/build"
+                                 :source-map    true
+                                 :optimizations :none
+                                 :aot-cache     false})
 (def cli-options (atom {}))
+
+(defn- path []
+  (mapv #(.getCanonicalPath (clojure.java.io/file %))
+        (-> @cli-options :options :dirs)))
 
 (defn log [& xs]
   (when (and (pos? (count xs)) :verbose?)
@@ -43,12 +47,12 @@
   cljs.env/*compiler*)
 
 (defn- analyzed-ns? [ns-meta]
-  (= (-> @cli-options :options :root-ns)
-     (first (clojure.string/split (first (:provides ns-meta)) #"\."))))
+  ((-> @cli-options :options :root-ns)
+   (first (clojure.string/split (first (:provides ns-meta)) #"\."))))
 
 (defn- analyzed-sb? [node]
-  (= (-> @cli-options :options :root-ns)
-     (first (clojure.string/split (second node) #"\."))))
+  ((-> @cli-options :options :root-ns)
+   (first (clojure.string/split (second node) #"\."))))
 
 (defn- analyze-var-status!
   "this fn comprises core logic of when a var is considered seen
@@ -120,8 +124,8 @@
                          ;;assuming lazy map+filter are optimized by compiler
                          ;;to prevent walking twice; this is more readable
                          (filter (fn [k]
-                                   (= (-> @cli-options :options :root-ns)
-                                      (first (clojure.string/split (str k) #"\.")))))
+                                   ((-> @cli-options :options :root-ns)
+                                    (first (clojure.string/split (str k) #"\.")))))
                          ;;leave ns->:ns/var scheme for now to stay flexible
                          ;;as query by ns seems imminent at some point
                          (map
@@ -142,12 +146,12 @@
   (shell/sh "rm" "-rf" (.getCanonicalPath (clojure.java.io/file ".cljs-toolbox-tmp"))))
 
 (defn- build* []
-  (log "build started with path..." path)
+  (log "build started with path..." (path))
   (clean-build)
   ;;NOTE bapi/build is too noisy
   (with-out-str
     (binding [*err* *out*]
-      (bapi/build (bapi/inputs path #_["src"]) compiler-options) ))
+      (bapi/build (apply bapi/inputs (path)) compiler-options) ))
   (log "build ended")
   (log "analyzing usage...")
   (analyze-usage!)
@@ -177,15 +181,21 @@
   (privates*))
 
 (def cli-options-scheme
-  [["-r" "--root-ns root"
+  [["-r" "--root-ns root-ns"
     "
     *Only required option
-     Namespaces to analyze are matched against this root ns up to first dot
+     Namespaces to analyze - specify namespace part(s) from start to first dot
      e.g.:
-     to analyze \"my-proj.views.some-file\" you should run with -r my-proj"
-    :id :root-ns
-    :parse-fn str
-    :validate [#(and (string? %) (not-empty %)) "Must be a non-empty string"]]
+     to analyze \"my-proj.views.some-file\" and \"my-other-proj.views.some-file\"
+     you should run with -r my-proj,my-other-proj"
+    :parse-fn #(set (map clojure.string/trim (clojure.string/split % #"\,")))
+    :validate [seq "Must be a string that goes like my-proj,my-proj-2"]]
+   ["-d" "--dirs dirs"
+    "
+     Directories to include in analysis, reasonable default is just src "
+    :parse-fn #(mapv clojure.string/trim (clojure.string/split % #"\,"))
+    :default  ["src"]
+    :validate [seq "Must be a non-empty string"]]
    ["-t" "--task task"
     "
     repl - start a repl session, where you should first run
@@ -200,9 +210,8 @@
     all - print dead-code, print should-be-privates, exit
     dead-code - print dead-code, exit
     privates - print should-be-privates, exit"
-    :id :task
     :parse-fn keyword
-    :default "all"
+    :default :all
     :validate [#{:repl :all :privates :dead-code}
                "Must be one of:
                                 repl,
@@ -235,11 +244,10 @@
 
 (defn- start-repl!
   ([] (start-repl! []))
-  ([forms] (cljs.repl/repl* (repl-env path)
+  ([forms] (cljs.repl/repl* (repl-env (path))
                             (assoc-in repl-options [:inits]
                                       [{:type :init-forms,
-                                        :forms [forms] #_['(println "starting build!!!" (cljs-toolbox.main/build))
-                                                          '(cljs-toolbox.main/dead-code)]}]))))
+                                        :forms [forms]}]))))
 
 (defn -main
   "Can be used to analyze compiled cljs to find unused or needlessly public vars"
