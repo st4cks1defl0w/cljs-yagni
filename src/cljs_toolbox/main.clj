@@ -271,4 +271,5 @@
                     '(cljs-toolbox.main/clean-exit)])
 
       (= (:task opts) :repl)
-      (start-repl!))))
+      (start-repl!))
+    (clean-build)))
