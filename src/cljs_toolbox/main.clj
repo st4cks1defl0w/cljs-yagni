@@ -145,8 +145,9 @@
   (log "build started with path..." path)
   (clean-build)
   ;;NOTE bapi/build is too noisy
-  (binding [*err* *out*]
-    (with-out-str (bapi/build (bapi/inputs path #_["src"]) compiler-options)))
+  (with-out-str
+    (binding [*err* *out*]
+      (bapi/build (bapi/inputs path #_["src"]) compiler-options) ))
   (log "build ended")
   (log "analyzing usage...")
   (analyze-usage!)
