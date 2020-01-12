@@ -1,4 +1,4 @@
-(ns cljs-toolbox.main
+(ns cljs-yagni.main
        (:require [cljs.repl]
                  [clojure.walk :as w]
                  [cljs.repl.node]
@@ -263,20 +263,20 @@
       (print-errors)
 
       (= (:task opts) :all)
-      (start-repl! ['(cljs-toolbox.main/build)
-                    '(cljs-toolbox.main/dead-code)
-                    '(cljs-toolbox.main/privates)
-                    '(cljs-toolbox.main/clean-exit)])
+      (start-repl! ['(cljs-yagni.main/build)
+                    '(cljs-yagni.main/dead-code)
+                    '(cljs-yagni.main/privates)
+                    '(cljs-yagni.main/clean-exit)])
 
       (= (:task opts) :dead-code)
-      (start-repl! ['(cljs-toolbox.main/build)
-                    '(cljs-toolbox.main/dead-code)
-                    '(cljs-toolbox.main/clean-exit)])
+      (start-repl! ['(cljs-yagni.main/build)
+                    '(cljs-yagni.main/dead-code)
+                    '(cljs-yagni.main/clean-exit)])
 
       (= (:task opts) :privates)
-      (start-repl! ['(cljs-toolbox.main/build)
-                    '(cljs-toolbox.main/privates)
-                    '(cljs-toolbox.main/clean-exit)])
+      (start-repl! ['(cljs-yagni.main/build)
+                    '(cljs-yagni.main/privates)
+                    '(cljs-yagni.main/clean-exit)])
 
       (= (:task opts) :repl)
       (start-repl!))

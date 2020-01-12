@@ -1,5 +1,5 @@
 (ns leiningen.cljs-yagni
-  (:require [cljs-toolbox.main :as main]))
+  (:require [cljs-yagni.main :as main]))
 
 (defn cljs-yagni
   "Entry for lein users"
