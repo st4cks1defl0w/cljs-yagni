@@ -1,15 +1,15 @@
 (ns cljs-yagni.main
-       (:require [cljs.repl]
-                 [clojure.walk :as w]
-                 [cljs.repl.node]
-                 [clojure.pprint]
-                 [cljs.analyzer :as ana]
-                 [cljs.env]
-                 [clojure.java.shell :as shell]
-                 [cljs.build.api :as bapi]
-                 [clojure.tools.namespace.repl :refer [refresh]]
-                 [clojure.tools.cli :refer [parse-opts]]
-                 [cljs.analyzer.api :as ana-api]))
+  (:require [cljs.repl]
+            [clojure.walk :as w]
+            [cljs.repl.node]
+            [clojure.pprint]
+            [cljs.analyzer :as ana]
+            [cljs.env]
+            [clojure.java.shell :as shell]
+            [cljs.build.api :as bapi]
+            [clojure.tools.namespace.repl :refer [refresh]]
+            [clojure.tools.cli :refer [parse-opts]]
+            [cljs.analyzer.api :as ana-api]))
 
 ;;NOTE Global state for easy inspection from repl
 ;;{:my-namespace {::a-public-var {:seen?              true
