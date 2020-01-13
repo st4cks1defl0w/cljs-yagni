@@ -21,7 +21,7 @@ in your `deps.edn`
 2) add a new alias:
 
 ``` clojure
-:cljs-yagni {:main-opts ["-m" "cljs-toolbox.main" "-r" "YOUR_ROOT_NS" ]}
+:cljs-yagni {:main-opts ["-m" "cljs-yagni.main" "-r" "YOUR_ROOT_NS" ]}
 
 ```
 
