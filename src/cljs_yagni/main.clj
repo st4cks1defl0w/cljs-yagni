@@ -255,7 +255,6 @@
   (println "Howdy, cljs-yagni started\n")
   (remember-cli-options! args)
   (let [opts (:options @cli-options)]
-    (println "opts are" opts)
     (cond
       (:help opts)
       (print-usage)
