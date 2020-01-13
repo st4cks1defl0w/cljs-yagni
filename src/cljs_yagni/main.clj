@@ -133,9 +133,9 @@
                             {(keyword n)
                              (apply merge
                                     (map (fn [pub-var] {(-> pub-var second :name keyword)
-                                                        {:seen?              false
-                                                         :should-be-private? false
-                                                         :seen-in            []}})
+                                                       {:seen?              false
+                                                        :should-be-private? false
+                                                        :seen-in            []}})
                                          (ana-api/ns-publics (symbol n))))}))
                          (apply merge))]
     (reset! publics-usage-graph ns->publics)
@@ -255,6 +255,7 @@
   (println "Howdy, cljs-yagni started\n")
   (remember-cli-options! args)
   (let [opts (:options @cli-options)]
+    (println "opts are" opts)
     (cond
       (:help opts)
       (print-usage)
