@@ -89,7 +89,8 @@
                            (constantly nil))
         all-vars         (vals @publics-usage-graph)
         filter-bad-vars  #(filter (fn [[_ v]]
-                                    (badness-case v)) %)
+                                    (and (not (:internal-ignored? v))
+                                         (badness-case v))) %)
         ;;NOTE quickly coerce nicely-structured publics-usage-graph map to seq
         non-verbose-vars (flatten (map #(->> % (filter-bad-vars) (map first)) all-vars))]
     non-verbose-vars))
@@ -116,6 +117,13 @@
          node)
        source-map))))
 
+(defn- rec-factory?
+  "defrecord factories cause false positives, use heurisitcs
+  to remove them from analysis "
+  [[_ var-map]]
+  (let [{:keys [factory ret-tag]} var-map]
+    (every? some? [factory ret-tag])))
+
 (defn- analyze-usage! []
   (let [compiled    (:cljs.closure/compiled-cljs @(cenv*))
         ns->publics (->> @(cenv*)
@@ -134,6 +142,8 @@
                              (apply merge
                                     (map (fn [pub-var] {(-> pub-var second :name keyword)
                                                        {:seen?              false
+                                                        :internal-ignored?   (rec-factory?
+                                                                             pub-var)
                                                         :should-be-private? false
                                                         :seen-in            []}})
                                          (ana-api/ns-publics (symbol n))))}))
