@@ -108,12 +108,11 @@
            (let [ns-kw  (keyword (second node))
                  var-ns (keyword (namespace ns-kw))]
              (analyze-var-status! var-ns ns-kw provides)
-             (when :verbose?
-               (swap! publics-usage-graph
-                      update-in
-                      [var-ns ns-kw :seen-in]
-                      conj
-                      (keyword (first provides))))))
+             (swap! publics-usage-graph
+                    update-in
+                    [var-ns ns-kw :seen-in]
+                    conj
+                    (keyword (first provides)))))
          node)
        source-map))))
 
