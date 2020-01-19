@@ -98,10 +98,7 @@ lein cljs-yagni
                Then you can invoke api calls directly:
                (cljs-yagni.main/dead-code) - print dead-code
                (cljs-yagni.main/privates) - print should-be-privates
-               (cljs-yagni.main/all) - print should-be-privates and dead-code
-               Also at all times you can inspect the var
-               (cljs-yagni.main/publics-usage-graph), which holds meaningful
-               map of all analyzed vars, may be useful for debugging
+               (cljs-yagni.main/all) - print dead-code and should-be-privates 
     all - print dead-code, print should-be-privates, exit
     dead-code - print dead-code, exit
     privates - print should-be-privates, exit"
@@ -170,6 +167,18 @@ Should-be-private vars analysis:
 
 
 ```
+
+## Troubleshooting
+
+Works with cljs `1.10.126` and onwards, on older versions you might get an 
+error about wrong `:inits` option on startup and empty repl. If that's the case you have to
+bump cljs version in your deps.edn/project.clj.
+This tool uses node repl.
+
+One caveat - cljc files that you also use in clj. This tool, being dynamic analyzer for cljs,
+doesn't look at your clj code but still looks at cljc code. So if you get dead
+code/should-be-private warnings for cljc that you also use in clj, you will have to verify
+that with https://github.com/venantius/yagni on clj side before deleting cljc vars.
 
 ## Misc.
 
