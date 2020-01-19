@@ -1,4 +1,4 @@
-(defproject stacksideflow/cljs-yagni "0.9"
+(defproject stacksideflow/cljs-yagni "0.9.1"
   :description "Cljs-toolbox short-lived repl yagni tool"
   :url "https://github.com/stacksideflow/cljs-yagni"
   :dependencies [[org.clojure/clojure  "1.10.1"]

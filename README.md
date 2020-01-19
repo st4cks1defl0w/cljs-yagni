@@ -13,7 +13,7 @@ in your `deps.edn`
 1) add to deps:
 
 ``` clojure
-:deps {stacksideflow/cljs-yagni {:mvn/version "0.9"}}
+:deps {stacksideflow/cljs-yagni {:mvn/version "0.9.1"}}
 
 ```
 
@@ -46,7 +46,7 @@ in your `project.clj`
 1) add to deps:
 
 ``` clojure
-:dependencies [[stacksideflow/cljs-yagni "0.9"]]
+:dependencies [[stacksideflow/cljs-yagni "0.9.1"]]
 
 ```
 
