@@ -25,7 +25,7 @@ in your `deps.edn`
 
 ```
 
--r is the only option you should specify for reasonable analysis.
+-r is the only option you should specify for analysis, assuming your cljs is in `/src`
 
 where `YOUR_ROOT_NS` - prefix for all your project namespaces, e.g. if all your namespaces
 are like "my-web-app.animations.views" then you should run with "-r" "my-web-app", if you also
@@ -57,7 +57,7 @@ in your `project.clj`
 
 ```
 
--r is the only option you should specify for reasonable analysis.
+-r is the only option you should specify for analysis, assuming your cljs is in `/src`
 
 where `YOUR_ROOT_NS` - prefix for all your project namespaces, e.g. if all your namespaces 
 are like "my-web-app.animations.views" then you should run with "-r" "my-web-app", if you also
